@@ -1,3 +1,5 @@
+import base64
+import hashlib
 from flask import Flask,request, redirect, render_template, session
 import redis
 import pyodbc
@@ -70,13 +72,23 @@ def home():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        # Verificamos si el usuario existe en la base de datos
-        if user_exists(request.form['username'], request.form['password']):
+        ## Verificamos si el usuario existe en la base de datos
+        if False:
             session['username'] = request.form['username']
             return redirect('/')
         else:
             return render_template('login.html', error='Usuario o contraseña incorrectos')
     return render_template('login.html')
+
+@app.route('/hmac', methods=['GET', 'POST'])
+def hmac():
+    message = "Hello, world!".encode("utf-8")
+    m = hashlib.sha256()
+    m.update(message)
+    hash_result = m.digest()
+    print(base64.b64encode(hash_result))
+    result= base64.b64encode(hash_result)
+    return result
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
