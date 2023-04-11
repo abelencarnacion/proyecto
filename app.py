@@ -1,6 +1,6 @@
 import base64
 import hashlib
-from flask import Flask,request, redirect, render_template, session
+from flask import Flask, abort,request, redirect, render_template, session
 import redis
 import pyodbc
 
@@ -44,7 +44,7 @@ def user_exists(username, password):
     conn = pyodbc.connect(connection_string)  
     cursor = conn.cursor()
    # cursor.execute(f"SELECT * FROM users WHERE username='{username}' AND password='{password}'")
-    cursor.execute(f"SELECT * FROM users WHERE username=? and password=?",(username,password))
+    cursor.execute(f"SELECT * FROM users WHERE username=? and password=?",(username,password(password)))
     results = cursor.fetchall()
   finally:
     # Cierra el cursor y la conexión
@@ -52,12 +52,24 @@ def user_exists(username, password):
     conn.close()
   return results
 
+def user_update(username):  
+  try:  
+    conn = pyodbc.connect(connection_string)  
+    cursor = conn.cursor()
+   # cursor.execute(f"SELECT * FROM users WHERE username='{username}' AND password='{password}'")
+    cursor.execute(f"update users set intentos=intentos+1 where username=?",(username))
+    results = cursor.fetchall()
+  finally:
+    # Cierra el cursor y la conexión
+    cursor.close()
+    conn.close()
+  return results
 # Función para agregar un usuario a la base de datos
 def add_user(username, password):
     conn = pyodbc.connect(connection_string)
     cursor = conn.cursor()
     try:  
-        cursor.execute(f"INSERT INTO users (username, password) VALUES ('{username}', '{password}')")
+        cursor.execute(f"INSERT INTO users (username, password) VALUES ('{username}', '{password(password)}')")
         conn.commit()
     finally:
         cursor.close()
@@ -73,16 +85,17 @@ def home():
 def login():
     if request.method == 'POST':
         ## Verificamos si el usuario existe en la base de datos
-        if False:
+        if user_exists:
             session['username'] = request.form['username']
             return redirect('/')
         else:
+            user_update(request.form['username'])
             return render_template('login.html', error='Usuario o contraseña incorrectos')
     return render_template('login.html')
 
 @app.route('/hmac', methods=['GET', 'POST'])
-def hmac():
-    message = "Hello, world!".encode("utf-8")
+def password(data):
+    message = data.encode("utf-8")
     m = hashlib.sha256()
     m.update(message)
     hash_result = m.digest()
@@ -94,9 +107,29 @@ def hmac():
 def register():
     if request.method == 'POST':
         # Agregamos el usuario a la base de datos
-        add_user(request.form['username'], request.form['password'])
-        return redirect('/login')
-    return render_template('register.html')
+        
+        clave_secreta = 'mi_clave_secreta'
+        print("imprimientdo valor de data")
+        data = request.form.get('username')+request.form.get('password')
+        print(data)
+        
+        message = data.encode("utf-8")
+        m = hashlib.sha256()
+        m.update(message)
+        hash_result = m.digest()
+        print(base64.b64encode(hash_result))
+        result= base64.b64encode(hash_result).decode("utf-8") 
+
+        hmac=request.headers.get('Hmac-SHA256')
+    
+      
+    if result != hmac:
+        abort(401)
+
+    add_user(request.form['username'], request.form['password'])
+    print("200")
+    return redirect('/login')
+    # return render_template('register.html')
 
 @app.route('/logout')
 def logout():
